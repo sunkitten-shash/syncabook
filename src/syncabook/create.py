@@ -189,6 +189,9 @@ def create_ebook(book_dir, alignment_radius=None, alignment_skip_penalty=None, l
 
     cover_path = os.path.join(images_dir, 'cover.jpg')
     include_cover = os.path.exists(cover_path)
+    if (not os.path.exists(cover_path)):
+        cover_path = os.path.join(images_dir, 'cover.png')
+        include_cover = os.path.exists(cover_path)
 
     opf_template = env.get_template('content.opf')
     opf_content = opf_template.render({

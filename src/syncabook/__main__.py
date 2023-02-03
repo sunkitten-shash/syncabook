@@ -5,6 +5,7 @@ from .download_files import download_files
 from .split_text import split_text
 from .sync import sync
 from .to_xhtml import textfiles_to_xhtml_files
+from .fragment_xhtml import fragment_xhtml_files
 
 
 def main():
@@ -54,6 +55,20 @@ def main():
     )
     parser_split.add_argument('--n', dest='n', type=int)
     parser_split.add_argument('--p', '--pattern', dest='pattern')
+
+    parser_fragment_xhtml = subparsers.add_parser(
+        'fragment_xhtml',
+        description='Convert XHTML files without fragments to XHTML files consisting of fragments.'
+    )
+    parser_fragment_xhtml.add_argument('input_dir')
+    parser_fragment_xhtml.add_argument('output_dir')
+    parser_fragment_xhtml.add_argument(
+        '--include-heading',
+        action='store_true',
+        dest='include_heading',
+        default=False,
+        help='Convert first paragraph to a heading.'
+    )
 
     parser_to_xhtml = subparsers.add_parser(
         'to_xhtml',
@@ -147,6 +162,11 @@ def main():
         )
     elif args.command == 'split_text':
         split_text(args.textfile, args.output_dir, args.mode, args.pattern, args.n)
+    elif args.command == 'fragment_xhtml':
+        fragment_xhtml_files(
+            args.input_dir, args.output_dir,
+            include_heading=args.include_heading
+        )
     elif args.command == 'to_xhtml':
         textfiles_to_xhtml_files(
             args.input_dir, args.output_dir,
