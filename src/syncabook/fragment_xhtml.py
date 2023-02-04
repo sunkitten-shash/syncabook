@@ -9,6 +9,8 @@ from bs4 import BeautifulSoup as bs
 from . import TEMPLATES_DIR
 from .utils import drop_extension, get_number_of_digits_to_name
 
+# class="Chap-Number-cn"
+# everything else in a regular p
 
 def fragment_xhtml_files(input_dir, output_dir, include_heading=False):
     """
@@ -17,14 +19,13 @@ def fragment_xhtml_files(input_dir, output_dir, include_heading=False):
     """
     os.makedirs(output_dir, exist_ok=True)
 
-    input_filenames = sorted(x for x in os.listdir(input_dir) if (x.endswith('.xhtml') and x != 'title_page.xhtml'))
+    input_filenames = sorted(x for x in os.listdir(input_dir) if (x.endswith('.xhtml')))
     texts_contents = []
     print(f'input_filenames: {input_filenames}')
     for filename in input_filenames:
         with open(os.path.join(input_dir, filename), 'r') as f:
             texts_contents.append(f.read())
     
-    texts_contents[0] = _merge_title_page(texts_contents[0], input_dir)
     xhtmls = _text_contents_to_fixed_xhtmls(texts_contents, include_heading)
 
     # formatting exists here
@@ -42,52 +43,26 @@ def fragment_xhtml_files(input_dir, output_dir, include_heading=False):
 def _text_contents_to_fixed_xhtmls(texts_contents, include_heading):
     xhtmls = []
 
-    if len(texts_contents) > 1:
-        xhtmls.append(_process_first_fic_page(texts_contents[0], True))
-        texts_contents = texts_contents[1:]
-    else:
-        xhtmls.append(_process_first_fic_page(texts_contents[0]))
+    # if len(texts_contents) > 1:
+    #     xhtmls.append(_process_first_fic_page(texts_contents[0], True))
+    #     texts_contents = texts_contents[1:]
+    # else:
+    #     xhtmls.append(_process_first_fic_page(texts_contents[0]))
 
     for text_content in texts_contents:
-        xhtmls.append(_process_page(text_content, multichap=True))
+        xhtmls.append(_process_page(text_content))
     return xhtmls
 
 
-def _merge_title_page(text_contents, input_dir):
-    with open(f'{input_dir}title_page.xhtml') as f:
-        soup = bs(f, 'html.parser')
-
-    # get just the body of title_page, wrapped in a .meta-wrapper span
-    soup.body.wrap(soup.new_tag('span', **{"class": "meta-wrapper"}))
-    soup = soup.span
-    soup.body.unwrap()
-
-    page = bs(text_contents, 'html.parser')
-    page.h3.insert_before(soup)
-
-    return str(page)
-
-
-def _process_first_fic_page(text_content, multichap):
-    """
-    Does special processing needed for first page of a fic, w/ header contents.
-    Returns: processed & prettified XHTML page
-    """
-    # wait this does not fucking need a method
-    text_content = _process_page(text_content, True, multichap)
-    return text_content
-
-
-def _process_page(text_content, header=False, multichap=False):
+def _process_page(text_content):
     """
     TODO: documentation of method
     """
 
     paragraphs = []
     soup = bs(text_content, 'html.parser')
-    # just the story, no notes
-    story = soup.find('div', {'class': 'userstuff module'})
-    paragraphs = story.find_all('p')
+    # hopefully these are the paragraphs that should be used?
+    paragraphs = soup.find_all('p')
 
     # list of all fragments (grouped by paragraph), to get a correct fragment count
     p_and_f = []
@@ -95,30 +70,20 @@ def _process_page(text_content, header=False, multichap=False):
         t = p.decode_contents()
         fragments = _get_fragments(t)
         p_and_f.append(fragments)
-    fragments_num = sum(len(p) for p in p_and_f)
-    # TODO: figure out how to do the notes thing
-    # notes = soup.find('div', {'class': 'fff_chapter_notes'})
-    # if (notes):
-    #     fragments_num += 1
+    fragments_num = sum(len(p) for p in p_and_f) + 1
 
     # edit stylesheet reference to reference actual stylesheet with ePub
+    # this isn't needed for actual use in the reg ebook version
+    # but it's useful for test ebooks to make sure everything's working peachy
     link = soup.find('link')
     link['href'] = "../styles/style.css"
 
     fragment_id = 1
-    if (header):
-        (soup, new_fragments_num) = _process_header_content(soup, fragments_num)
-        # it'll be offset by however many new fragments were added in the header
-        fragment_id += new_fragments_num - fragments_num
-        fragments_num = new_fragments_num
     n = get_number_of_digits_to_name(fragments_num)
-    if (multichap):
-        chapter_title = soup.find('h3', {'class': 'fff_chapter_title'})
-        print(chapter_title)
-        chapter_title.wrap(soup.new_tag('div', id=f'f{fragment_id:0>{n}}'))
-        fragment_id += 1
-        fragments_num += 1
-        n = get_number_of_digits_to_name(fragments_num)
+    chapter_title = soup.find('h1', {'class': 'Chap-Number-cn'})
+    print(chapter_title)
+    chapter_title.wrap(soup.new_tag('div', id=f'f{fragment_id:0>{n}}'))
+    fragment_id += 1
 
     # TODO: I am...realizing that this removes anything that is not a paragraph
     # that seems....possibly problematic haha
@@ -127,6 +92,9 @@ def _process_page(text_content, header=False, multichap=False):
     # it's getting fucking OBLITERATED
     final_paras = []
     # I feel that you...may not need to do all this...it may be redundant...
+    # WAIT try doing a thing where you clear it and then add it
+    # in the same thing? cause you have the paragraph so just clear the fuckin tag
+    # do this in the base branch tho
     for p in paragraphs:
         t = p.decode_contents()
         p.string = ''
@@ -141,58 +109,14 @@ def _process_page(text_content, header=False, multichap=False):
             fragment_id += 1
         final_paras.append(p)
     
-    story.string = ''
-    for p in final_paras:
-        story.append(p)
+
+    # story.string = ''
+    # for p in final_paras:
+    #     story.append(p)
     # if (notes):
     #     notes.wrap(html_parse.new_tag('span', id=f'f{fragment_id:0>{n}}'))
 
     return soup.prettify('utf-8')
-
-
-def _process_header_content(soup, fragments_num):
-    fragment_id = 1
-    n = get_number_of_digits_to_name(fragments_num)
-
-    # calculate extra fragments used in header info
-    # TEMP: this
-    title_and_author = True
-    fandom = True
-    tags = False
-    summary = True
-    for val in [title_and_author, fandom, tags, summary]:
-        if val:
-            fragments_num += 1
-    
-    if (title_and_author):
-        # TODO: check if this works if there's multiple H3s in something?
-        soup.h3.wrap(soup.new_tag('div', id=f'f{fragment_id:0>{n}}'))
-        fragment_id += 1
-    # make the headers into a str for easier regexing
-    headers_str = str(soup.find('span', {'class': 'meta-wrapper'}))
-    # NOTE: This is changing things to have a more logical name. Should I?
-    if (fandom):
-        # matches up to but not including the first <br/>
-        reg = r'<b>Category:</b>(.+?)(?=<br/>)'
-        headers_str = re.sub(reg, rf'<span id="f{fragment_id:0>{n}}"><b>Fandom:</b>\1</span>', headers_str)
-        fragment_id += 1
-    # TODO: expand this to more specificity? like rating vs. general tags
-    # that would also help with changing the names of things!
-    if (tags):
-        reg = r'(<b>Genre:</b>[\S\s]+?)(?=<b>Summary:</b>)'
-        headers_str = re.sub(reg, rf'<div id="f{fragment_id:0>{n}}">\1</div>', headers_str)
-        fragment_id += 1
-    if (summary):
-        reg = r'(<b>Summary:</b>[\S\s]+?)(?=</div><br/>)'
-        # EXPERIMENTAL: we're making it a fucking div
-        headers_str = re.sub(reg, rf'<div id="f{fragment_id:0>{n}}">\1</div>', headers_str)
-        fragment_id += 1
-
-    headers = soup.find('span', {'class': 'meta-wrapper'})
-    headers.clear()
-    headers.append(bs(headers_str, 'html.parser'))
-
-    return (soup, fragments_num)
 
 
 def _text_contents_to_fixed_xhtmls_old(texts_contents, include_heading):

@@ -3,6 +3,8 @@
 
 /.vscode/
 
+/build
+
 **/__pycache__/
 *.py[co]
 
